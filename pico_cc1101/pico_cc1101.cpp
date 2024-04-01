@@ -11,6 +11,12 @@
 #define MOSI 5 // SPI0 TX on Pico
 #define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
 
+int spi_read(int register, int length) {
+    return 0;
+}
+int spi_write(int register, int command) {
+    return 0;
+}
 int config_radio(std::string mode, double freq) {
     // For the moment, we are just going to use a static config setup for 304MHz ASK/OOK
     // If we get that working well, we will look at making configurable options
