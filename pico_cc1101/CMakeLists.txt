@@ -12,6 +12,7 @@ pico_sdk_init()
 # rest of your project
 add_executable(pico_cc1101
     pico_cc1101.cpp
+    cc1101_defs.h
 )
 
 # Add pico_stdlib library which aggregates commonly used features

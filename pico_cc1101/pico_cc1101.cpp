@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include "cc1101_defs.h"
+#include "cc1101_func.h"
 
 // Defines for SPI connection
 #define MISO 6 // SPI0 RX on Pico
@@ -10,6 +11,8 @@
 #define SCLK 4 // SPI0 SCK on Pico
 #define MOSI 5 // SPI0 TX on Pico
 #define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
+#define ENDSTDIN 255 // This is a signal that the communication has terminated for the UART
+#define CR 13 // ASCII character for a carriage return
 
 int spi_read(int register, int length) {
     return 0;
@@ -70,6 +73,34 @@ int config_radio(std::string mode, double freq) {
     spi_write_blocking((spi_inst_t*)CC1101_TEST0, (const uint8_t*)0x0B, 1); // Write TEST0 register
     return 0;
 }
+int i2c_cmd_loop() {
+    // This is where we will drop if acting as an i2c bridge to send commands to the cc1101
+    while (true) {
+
+    }
+    return 0;
+}
+int uart_cmd_loop() {
+    // This is where we will drop when awaiting commands over the serial terminal
+    char cmd_str[250]; // Character array to hold string built from chars received from the UART
+    char chr; // This is used to receive a single character from the UART
+    int lp = 0; // Line pointer to let us know where we are while building the string
+    while (true) { // Loop until we purposely break out of it
+        chr = getchar_timeout_us(0); // Blocking call to wait for a character off the UART
+        while(chr != ENDSTDIN) { // As long as the chr was not an end of transmission
+            cmd_Str[lp++] = chr; // Increment our line pointer, and drop the chr at the line pointer index
+            if (chr == CR || lp == (sizeof(cmd_str) - 1)) { // If the chr was not a carriage return, and isn't about to overflow our character array
+                cmd_str[lp] = 0; // Terminate our character string
+                // String ready, process here!
+                lp = 0; // Re-blank our line pointer for the next string
+                cmd_str[0] = '\0'; // Re-blank our character array for the next string
+                continue; // Go back to the beginning of our loop
+            }
+            chr = getchar_timeout_us(0); // If it was not a CR or buffer overflow, then wait for another character from the UART
+        }
+    }
+    return 0; // Shouldn't technically get here anyway, but if we did, clean return
+}
 int main() {
     stdio_init_all(); // Init UART, we will use USB UART per the CMake config
     spi_init(SPI_PORT, 500000); // Init SPI with a frequency of 500kHz
@@ -80,6 +111,7 @@ int main() {
     gpio_set_dir(CS, GPIO_OUT); // Set CS as output
     printf("Pico cc1101 tool\n\n");
     printf("Attempting to send basic config...");
-    config_radio("OOK", 304.0);
-    return 0;
+    config_radio("OOK", 304.0); // Not yet implemented, so this just calls a basic config
+    return 0; // Oddly, this appears to be required by the compiler, even though in this instance, 
+    // there is nothing to return this to.  If you try instantiating main as a void though, you get an error.  Bizarre.
 }
