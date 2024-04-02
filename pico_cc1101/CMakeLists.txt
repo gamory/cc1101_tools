@@ -15,11 +15,18 @@ add_executable(pico_cc1101
     cc1101_defs.h
 )
 
+# cc1101 function library
+add_library(cc1101_func STATIC
+    cc1101_func.cpp
+    cc1101_func.h
+)
+
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(
     pico_cc1101 
     pico_stdlib 
     hardware_spi
+    cc1101_func
 )
 
 pico_enable_stdio_usb(pico_cc1101 1)
