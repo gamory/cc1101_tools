@@ -88,7 +88,7 @@ int uart_cmd_loop() {
     while (true) { // Loop until we purposely break out of it
         chr = getchar_timeout_us(0); // Blocking call to wait for a character off the UART
         while(chr != ENDSTDIN) { // As long as the chr was not an end of transmission
-            cmd_Str[lp++] = chr; // Increment our line pointer, and drop the chr at the line pointer index
+            cmd_str[lp++] = chr; // Increment our line pointer, and drop the chr at the line pointer index
             if (chr == CR || lp == (sizeof(cmd_str) - 1)) { // If the chr was not a carriage return, and isn't about to overflow our character array
                 cmd_str[lp] = 0; // Terminate our character string
                 // String ready, process here!
