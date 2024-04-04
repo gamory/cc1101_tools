@@ -1,9 +1,13 @@
 #include <iostream>
-#include <string>
+#include <string.h>
+#include <stdio.h>
+#include <cstdlib> 
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include "cc1101_defs.h"
 #include "cc1101_func.h"
+
+// getLine routine is not mine.  See https://github.com/ambotaku/pico-getLine
 
 // Defines for SPI connection
 #define MISO 6 // SPI0 RX on Pico
@@ -11,13 +15,13 @@
 #define SCLK 4 // SPI0 SCK on Pico
 #define MOSI 5 // SPI0 TX on Pico
 #define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
-#define ENDSTDIN 255 // This is a signal that the communication has terminated for the UART
-#define CR 13 // ASCII character for a carriage return
+const int startLineLength = 8; // the linebuffer will automatically grow for longer lines
+const char eof = 255;  
 
-int spi_read(int register, int length) {
+int spi_read(int cc1101_register, int length) {
     return 0;
 }
-int spi_write(int register, int command) {
+int spi_write(int cc1101_register, int command) {
     return 0;
 }
 int config_radio(std::string mode, double freq) {
@@ -80,23 +84,59 @@ int i2c_cmd_loop() {
     }
     return 0;
 }
+static char * getLine(bool fullDuplex = true, char lineBreak = '\n') {
+    // th line buffer
+    // will allocated by pico_malloc module if <cstdlib> gets included
+    char * pStart = (char*)malloc(startLineLength); 
+    char * pPos = pStart;  // next character position
+    size_t maxLen = startLineLength; // current max buffer size
+    size_t len = maxLen; // current max length
+    int c;
+
+    if(!pStart) {
+        return NULL; // out of memory or dysfunctional heap
+    }
+
+    while(1) {
+        c = getchar(); // expect next character entry
+        if(c == eof || c == lineBreak) {
+            break;     // non blocking exit
+        }
+
+        if (fullDuplex) {
+            putchar(c); // echo for fullDuplex terminals
+        }
+
+        if(--len == 0) { // allow larger buffer
+            len = maxLen;
+            // double the current line buffer size
+            char *pNew  = (char*)realloc(pStart, maxLen *= 2);
+            if(!pNew) {
+                free(pStart);
+                return NULL; // out of memory abort
+            }
+            // fix pointer for new buffer
+            pPos = pNew + (pPos - pStart);
+            pStart = pNew;
+        }
+
+        // stop reading if lineBreak character entered 
+        if((*pPos++ = c) == lineBreak) {
+            break;
+        }
+    }
+
+    *pPos = '\0';   // set string end mark
+    return pStart;
+}
 int uart_cmd_loop() {
     // This is where we will drop when awaiting commands over the serial terminal
-    char cmd_str[250]; // Character array to hold string built from chars received from the UART
-    char chr; // This is used to receive a single character from the UART
-    int lp = 0; // Line pointer to let us know where we are while building the string
-    while (true) { // Loop until we purposely break out of it
-        chr = getchar_timeout_us(0); // Blocking call to wait for a character off the UART
-        while(chr != ENDSTDIN) { // As long as the chr was not an end of transmission
-            cmd_str[lp++] = chr; // Increment our line pointer, and drop the chr at the line pointer index
-            if (chr == CR || lp == (sizeof(cmd_str) - 1)) { // If the chr was not a carriage return, and isn't about to overflow our character array
-                cmd_str[lp] = 0; // Terminate our character string
-                // String ready, process here!
-                lp = 0; // Re-blank our line pointer for the next string
-                cmd_str[0] = '\0'; // Re-blank our character array for the next string
-                continue; // Go back to the beginning of our loop
-            }
-            chr = getchar_timeout_us(0); // If it was not a CR or buffer overflow, then wait for another character from the UART
+    while (true) {
+        printf("\n> ");
+        char * rawcmd;
+        rawcmd = getLine();
+        if (strcmp(rawcmd, "Butts") == 0) {
+            printf("Butts were not only received, but identified.\n");
         }
     }
     return 0; // Shouldn't technically get here anyway, but if we did, clean return
@@ -110,8 +150,10 @@ int main() {
     gpio_init(CS); // Init CS pin
     gpio_set_dir(CS, GPIO_OUT); // Set CS as output
     printf("Pico cc1101 tool\n\n");
-    printf("Attempting to send basic config...");
-    config_radio("OOK", 304.0); // Not yet implemented, so this just calls a basic config
+    // printf("Attempting to send basic config...");
+    // config_radio("OOK", 304.0); // Not yet implemented, so this just calls a basic config
+    printf("Entering UART shell loop...\n\n");
+    uart_cmd_loop(); // Just for testing at this time
     return 0; // Oddly, this appears to be required by the compiler, even though in this instance, 
     // there is nothing to return this to.  If you try instantiating main as a void though, you get an error.  Bizarre.
 }
