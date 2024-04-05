@@ -1,3 +1,3 @@
 // Some functions that may be useful for those developing on this chip
 
-int get_frequency_values(int freq_xtal, int freq_hz);
+void get_frequency_values(uint32_t freq_xtal, uint32_t freq_hz, uint32_t* FREQ2, uint32_t* FREQ1, uint32_t* FREQ0);
