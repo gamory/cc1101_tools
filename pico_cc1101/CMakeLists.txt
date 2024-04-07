@@ -29,8 +29,8 @@ target_link_libraries(
     cc1101_func
 )
 
-pico_enable_stdio_usb(pico_cc1101 1)
-pico_enable_stdio_uart(pico_cc1101 0)
+pico_enable_stdio_usb(pico_cc1101 0)
+pico_enable_stdio_uart(pico_cc1101 1)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(pico_cc1101)

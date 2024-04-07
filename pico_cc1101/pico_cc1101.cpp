@@ -4,10 +4,10 @@
 #include <cstdlib> 
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "hardware/uart.h"
+#include "pico/bootrom.h"
 #include "cc1101_defs.h"
 #include "cc1101_func.h"
-
-// getLine routine is not mine.  See https://github.com/ambotaku/pico-getLine
 
 // Defines for SPI connection
 #define MISO 6 // SPI0 RX on Pico
@@ -15,6 +15,7 @@
 #define SCLK 4 // SPI0 SCK on Pico
 #define MOSI 5 // SPI0 TX on Pico
 #define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
+#define UART_ID uart0
 const int startLineLength = 8; // the linebuffer will automatically grow for longer lines
 const char eof = 255;  
 
@@ -84,61 +85,53 @@ int i2c_cmd_loop() {
     }
     return 0;
 }
-static char * getLine(bool fullDuplex = true, char lineBreak = '\n') {
-    // th line buffer
-    // will allocated by pico_malloc module if <cstdlib> gets included
-    char * pStart = (char*)malloc(startLineLength); 
-    char * pPos = pStart;  // next character position
-    size_t maxLen = startLineLength; // current max buffer size
-    size_t len = maxLen; // current max length
-    int c;
-
-    if(!pStart) {
-        return NULL; // out of memory or dysfunctional heap
-    }
-
-    while(1) {
-        c = getchar(); // expect next character entry
-        if(c == eof || c == lineBreak) {
-            break;     // non blocking exit
+void uart_clear_screen() {
+    uart_putc(UART_ID, 0x1B);
+    uart_putc(UART_ID, 0x5B);
+    uart_putc(UART_ID, 0x32);
+    uart_putc(UART_ID, 0x4A);
+    uart_putc(UART_ID, 0x1B);
+    uart_putc(UART_ID, 0x63);
+    return;
+}
+std::string uart_getline_blocking(char linebreak = '\n') {
+    std::string input_buffer;
+    while (true) {
+        uint8_t ch = uart_getc(UART_ID);
+        if (ch > 0x7F) {
+            continue;
         }
-
-        if (fullDuplex) {
-            putchar(c); // echo for fullDuplex terminals
-        }
-
-        if(--len == 0) { // allow larger buffer
-            len = maxLen;
-            // double the current line buffer size
-            char *pNew  = (char*)realloc(pStart, maxLen *= 2);
-            if(!pNew) {
-                free(pStart);
-                return NULL; // out of memory abort
+        if (ch == 0x0D) { // If user pressed enter
+            uart_putc(UART_ID, 0x0D);
+            if (input_buffer == "cls") {
+                input_buffer = "";
+                uart_clear_screen();
+                // uart_putc(UART_ID, '> ');
+                continue;
             }
-            // fix pointer for new buffer
-            pPos = pNew + (pPos - pStart);
-            pStart = pNew;
+            if (input_buffer == "bootloader") {
+                reset_usb_boot(0,0); // Restart the Pi Pico
+            }
+            input_buffer = "";
+            continue;
         }
-
-        // stop reading if lineBreak character entered 
-        if((*pPos++ = c) == lineBreak) {
-            break;
+        if (ch == 0x08) { // User entered a backspace
+            if (!input_buffer.empty()) {
+                input_buffer.pop_back(); // Remove last character
+            }
+            continue;
+        }
+        else{
+            uart_putc(UART_ID, ch);
+            std::cout << "(" << std::hex << ch << ")";
+            input_buffer += ch;
+            continue;
         }
     }
-
-    *pPos = '\0';   // set string end mark
-    return pStart;
 }
 int uart_cmd_loop() {
     // This is where we will drop when awaiting commands over the serial terminal
-    while (true) {
-        printf("\n> ");
-        char * rawcmd;
-        rawcmd = getLine();
-        if (strcmp(rawcmd, "Butts") == 0) {
-            printf("Butts were not only received, but identified.\n");
-        }
-    }
+    
     return 0; // Shouldn't technically get here anyway, but if we did, clean return
 }
 int main() {
@@ -153,7 +146,8 @@ int main() {
     // printf("Attempting to send basic config...");
     // config_radio("OOK", 304.0); // Not yet implemented, so this just calls a basic config
     printf("Entering UART shell loop...\n\n");
-    uart_cmd_loop(); // Just for testing at this time
+    //uart_cmd_loop(); // Just for testing at this time
+    uart_getline_blocking();
     return 0; // Oddly, this appears to be required by the compiler, even though in this instance, 
     // there is nothing to return this to.  If you try instantiating main as a void though, you get an error.  Bizarre.
 }
