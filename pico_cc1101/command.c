@@ -1,39 +1,32 @@
-#include <iostream>
-#include <string.h>
+
 #include <stdio.h>
-#include <cstdlib> 
-#include "pico/stdlib.h"
-#include "hardware/spi.h"
-#include "hardware/uart.h"
+#include "command.h"
 #include "pico/bootrom.h"
+#include "hardware/spi.h"
 #include "cc1101_defs.h"
 #include "cc1101_func.h"
-#include "console.h"
-#include "command.h"
 
-// declare initialization method
-void init ();
-
-// declare semaphore to control command execution, I don't know what this does.
-semaphore_t semCommand;
-
-// Defines for SPI connection
-#define MISO 6 // SPI0 RX on Pico
-#define CS   7 // SPI0 CSn on Pico
-#define SCLK 4 // SPI0 SCK on Pico
-#define MOSI 5 // SPI0 TX on Pico
-#define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
 #define UART_ID uart0
-const int startLineLength = 8; // the linebuffer will automatically grow for longer lines
-const char eof = 255;  
 
-int spi_read(int cc1101_register, int length) {
-    return 0;
+// help message
+const char * HELP = 
+  "CC1101 Console - v0.1\n"
+  "\n"
+  "Commands:\n"
+  "help - Display this help message\n"
+  "bootrom - Reset and boot into BOOTSEL ROM\n";
+
+
+void uart_clear_screen() {
+    uart_putc(UART_ID, 0x1B);
+    uart_putc(UART_ID, 0x5B);
+    uart_putc(UART_ID, 0x32);
+    uart_putc(UART_ID, 0x4A);
+    uart_putc(UART_ID, 0x1B);
+    uart_putc(UART_ID, 0x63);
+    return;
 }
-int spi_write(int cc1101_register, int command) {
-    return 0;
-}
-int config_radio(std::string mode, double freq) {
+int config_radio(double freq) {
     // For the moment, we are just going to use a static config setup for 304MHz ASK/OOK
     // If we get that working well, we will look at making configurable options
     spi_write_blocking((spi_inst_t*)CC1101_IOCFG2, (const uint8_t*)0x29, 1); // Write IOCFG2 register
@@ -86,85 +79,21 @@ int config_radio(std::string mode, double freq) {
     spi_write_blocking((spi_inst_t*)CC1101_TEST0, (const uint8_t*)0x0B, 1); // Write TEST0 register
     return 0;
 }
-int i2c_cmd_loop() {
-    // This is where we will drop if acting as an i2c bridge to send commands to the cc1101
-    while (true) {
+// thread to process commands
+void commandProcessor () {
+  for (;;) {
+    // block until console permits command processing
+    sem_acquire_blocking(&semCommand);
 
-    }
-    return 0;
-}
-void uart_clear_screen() {
-    uart_putc(UART_ID, 0x1B);
-    uart_putc(UART_ID, 0x5B);
-    uart_putc(UART_ID, 0x32);
-    uart_putc(UART_ID, 0x4A);
-    uart_putc(UART_ID, 0x1B);
-    uart_putc(UART_ID, 0x63);
-    return;
-}
-std::string uart_getline_blocking(char linebreak = '\n') {
-    std::string input_buffer;
-    while (true) {
-        uint8_t ch = uart_getc(UART_ID);
-        if (ch > 0x7F) {
-            continue;
-        }
-        if (ch == 0x0D) { // If user pressed enter
-            uart_putc(UART_ID, 0x0D);
-            if (input_buffer == "cls") {
-                input_buffer = "";
-                uart_clear_screen();
-                // uart_putc(UART_ID, '> ');
-                continue;
-            }
-            if (input_buffer == "bootloader") {
-                reset_usb_boot(0,0); // Restart the Pi Pico
-            }
-            input_buffer = "";
-            continue;
-        }
-        if (ch == 0x08) { // User entered a backspace
-            if (!input_buffer.empty()) {
-                input_buffer.pop_back(); // Remove last character
-            }
-            continue;
-        }
-        else{
-            uart_putc(UART_ID, ch);
-            std::cout << "(" << std::hex << ch << ")";
-            input_buffer += ch;
-            continue;
-        }
-    }
-}
-int uart_cmd_loop() {
-    // This is where we will drop when awaiting commands over the serial terminal
-    
-    return 0; // Shouldn't technically get here anyway, but if we did, clean return
-}
-void init () {
-  // initialize stdio
-  stdio_init_all();
-  stdio_flush();
-  setbuf(stdout, NULL); // make sure character input is buffered
-  // initialize command semaphore
-  sem_init(&semCommand, 0, 1);
-}
-int main() {
-    stdio_init_all(); // Init UART, we will use USB UART per the CMake config
-    init();
-    multicore_launch_core1(console);
-    spi_init(SPI_PORT, 500000); // Init SPI with a frequency of 500kHz
-    gpio_set_function(MISO, GPIO_FUNC_SPI); // Init MISO pin
-    gpio_set_function(SCLK, GPIO_FUNC_SPI); // Init SCLK pin
-    gpio_set_function(MOSI, GPIO_FUNC_SPI); // Init MOSI pin
-    gpio_init(CS); // Init CS pin
-    gpio_set_dir(CS, GPIO_OUT); // Set CS as output
-    printf("Pico cc1101 tool\n\n");
-    // printf("Attempting to send basic config...");
-    // config_radio("OOK", 304.0); // Not yet implemented, so this just calls a basic config
-    printf("Entering UART shell loop...\n\n");
-    commandProcessor();
-    return 0; // Oddly, this appears to be required by the compiler, even though in this instance, 
-    // there is nothing to return this to.  If you try instantiating main as a void though, you get an error.  Bizarre.
+    // continue if command line is empty
+    if (0 == strlen(commandLine)) continue;
+    // help command
+    else if (0 == strcmp(commandLine, "help")) printf("%s", HELP);
+    // clear command
+    else if (0 == strcmp(commandLine, "clear")) uart_clear_screen();
+    // bootrom command
+    else if (0 == strcmp(commandLine, "bootrom")) reset_usb_boot(0, 0);
+    // invalid input error
+    else printf("Unknown command %s. Enter help command for help.\n", commandLine);
+  }
 }

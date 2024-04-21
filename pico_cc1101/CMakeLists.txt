@@ -4,33 +4,15 @@ cmake_minimum_required(VERSION 3.13)
 # note: this must happen before project()
 include(pico_sdk_import.cmake)
 
-project(pico_cc1101)
+project(console)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
-# initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
+add_executable(console main.c console.c command.c)
 
-# rest of your project
-add_executable(pico_cc1101
-    pico_cc1101.cpp
-    cc1101_defs.h
-)
+target_link_libraries(console pico_stdlib pico_multicore hardware_spi)
+pico_add_extra_outputs(console)
 
-# cc1101 function library
-add_library(cc1101_func STATIC
-    cc1101_func.cpp
-    cc1101_func.h
-)
-
-# Add pico_stdlib library which aggregates commonly used features
-target_link_libraries(
-    pico_cc1101 
-    pico_stdlib 
-    hardware_spi
-    cc1101_func
-)
-
-pico_enable_stdio_usb(pico_cc1101 0)
-pico_enable_stdio_uart(pico_cc1101 1)
-
-# create map/bin/hex/uf2 file in addition to ELF.
-pico_add_extra_outputs(pico_cc1101)
+pico_enable_stdio_uart(console 1)
+pico_enable_stdio_usb(console 1)
