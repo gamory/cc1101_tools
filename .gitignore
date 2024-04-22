@@ -1,3 +1,4 @@
 pico_cc1101/.vscode/
 pico_cc1101/build/
 pico_cc1101/pico_sdk_import.cmake.*
+pico_cc1101/notes.txt

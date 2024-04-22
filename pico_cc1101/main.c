@@ -6,20 +6,19 @@
 #include "pico/bootrom.h"
 #include "console.h"
 #include "command.h"
+#include "spi_defs.h"
+
+// Defines for SPI connection
+const uint spi_miso = 6; // SPI0 RX on Pico
+const uint spi_cs = 7; // SPI0 CSn on Pico
+const uint spi_sclk = 4; // SPI0 SCK on Pico
+const uint spi_mosi = 5; // SPI0 TX on Pico
 
 // declare initialization method
 void init ();
 
 // declare semaphore to control command execution
 semaphore_t semCommand;
-
-// Defines for SPI connection
-#define MISO 6 // SPI0 RX on Pico
-#define CS   7 // SPI0 CSn on Pico
-#define SCLK 4 // SPI0 SCK on Pico
-#define MOSI 5 // SPI0 TX on Pico
-#define SPI_PORT spi0 // Specify that we are using the SPI0 interface hardware on the Pico
-#define UART_ID uart0
 
 // This starts up the UART console on core 1, and then starts up the command processor on core 0
 int main () {
@@ -32,6 +31,22 @@ int main () {
 
 // initialize application
 void init () {
+  // Init SPI
+  spi_inst_t *spi = SPI_PORT; // Set port
+  gpio_init(spi_cs); // Init our CS pin
+  gpio_set_dir(spi_cs, GPIO_OUT); // Set the CS pin to output
+  gpio_put(spi_cs, 1); // Set the CS pin high
+  spi_init(spi, 500 * 1000); // Initialize SPI port at 500 kHz
+  // Set SPI format
+  spi_set_format(SPI_PORT,  // SPI instance
+                    8,      // Number of bits per transfer
+                    1,      // Polarity (CPOL)
+                    1,      // Phase (CPHA)
+                    SPI_MSB_FIRST);
+  // Initialize SPI pins
+  gpio_set_function(spi_sclk, GPIO_FUNC_SPI); // Setup clock pin for SPI
+  gpio_set_function(spi_mosi, GPIO_FUNC_SPI); // Setup MOSI pin for SPI
+  gpio_set_function(spi_miso, GPIO_FUNC_SPI); // Setup MISO pin for SPI
   // initialize stdio
   stdio_init_all();
   stdio_flush();
